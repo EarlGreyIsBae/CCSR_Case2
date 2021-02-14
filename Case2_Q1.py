@@ -19,6 +19,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.stats import norm
 import pandas as pd
+from scipy.integrate import quad
 ###########################################################
 #Input given variables.
 dLGD = 0.3
@@ -32,6 +33,16 @@ mD = {'iMaturity': [1, 3, 5, 7, 10],
 mData = pd.DataFrame(data = mD)
 
 #Calculate cumulative hazard rates.
-mData['dCum_Haz'] = mData['iCDS_Rate']/dLGD
+mData['dCum_Haz'] = (mData['iCDS_Rate']/10000)/dLGD
+
+#Loop through maturities and calculate cumulative default probability.
+for i in range(0, len(mData)):
+    mData.iloc[i, 4] = np.exp(-mData['dCum_Haz'][i] * mData['iMaturity'][i])
 
 
+#Fill in forward hazard rate for t = 1 (to simplify loop).
+mData['dFwd_Haz'][0] = -np.log(mData['dCum_D_Prob'][0]/1)/(mData['iMaturity'][0] - 0)
+
+#Loop through remainder of values.
+for j in range(1, len(mData)):
+    mData['dFwd_Haz'][j] = -np.log(mData['dCum_D_Prob'][j]/mData['dCum_D_Prob'][j - 1])/(mData['iMaturity'][j] - mData['iMaturity'][j - 1])
