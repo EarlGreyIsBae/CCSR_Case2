@@ -81,19 +81,21 @@ def Lam(T):
         CumLam = (250/10000)/dLGD
     return CumLam
 
-
+iN = 3
 dLGD = 0.3
 dr = 0.005
-
-def Optim(iN):
-    Lamd = Lam(iN)
-    def PremPay(dr, iN):
-        vPremPay = np.zeros(int(iN * 4 + 1))
-        for i, iT in enumerate (np.linspace(0.25, iN, iN * 4 + 1)):
-            vPremPay[i] = np.exp(-dr * iT) * 1/4 * np.exp(-Lamd * iT)
-        return sum(vPremPay)
+Lamd = Lam(iN)
+def Optim(Lamd, iN):
+    ####
+    #PREMIUM PAYMENTS
+    ####
+    def PremPay(iN):
+        dPremPay = 0
+        for i in (np.linspace(0.25, iN, iN * 4 + 1)):
+            dPremPay = dPremPay  + np.exp(-dr * i) * 0.25 * np.exp(-Lamd * i)
+        return dPremPay
     
-    dPremPay = PremPay(dr, iN)
+    dPremPay = PremPay(iN)
     
     ####
     #ACCRUED PREMIUM
@@ -106,7 +108,6 @@ def Optim(iN):
     dAccrPrem = quad(AccrIntegrand, 0, iN)[0]    
     
     dPremLeg = dCDS[iN] * (dPremPay + dAccrPrem)
-    #dCDS[iN]
     
     ####
     #PROTECTION LEG
@@ -120,6 +121,8 @@ def Optim(iN):
 
     return dPremLeg - dProtecLeg
 
-Optim(10)
+Optim(Lamd,1)
 
-minimize(Optim, (160/10000)/dLGD, method = 'Nelder-Mead', tol = 0.1)
+diff = lambda x: Optim(x, iN)
+
+minimize(diff, dCDS[iN]/dLGD, method = 'Nelder-Mead', tol = 0.1)
