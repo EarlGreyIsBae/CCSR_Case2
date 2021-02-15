@@ -20,6 +20,7 @@ import matplotlib.pyplot as plt
 from scipy.stats import norm
 import pandas as pd
 from scipy.integrate import quad
+from scipy.optimize import minimize
 ###########################################################
 """
 Question 1
@@ -58,30 +59,67 @@ Question 2
 
 #Create dataframe to hold results for question 2.
 mData2 = pd.DataFrame(data = mD)
+dCDS = {1: 160/10000, 3: 180/10000, 5: 200/10000, 7: 210/10000, 10: 250/10000}
+
+vPayTimes = np.linspace
 
 ####
 #PREMIUM PAYMENTS
 ####
 
 def Lam(T):
-    if ((T >= 0) and (T <= 1)):
+    CumLam = 0
+    if ((T > 0) and (T <= 1)):
         CumLam = (160/10000)/dLGD
     if ((T > 1) and (T <= 3)):
-        CumLam = (160/10000)/dLGD
+        CumLam = (180/10000)/dLGD
     if ((T > 3) and (T <= 5)):
-        CumLam = (160/10000)/dLGD       
+        CumLam = (200/10000)/dLGD       
     if ((T > 5) and (T <= 7)):
-        CumLam = (160/10000)/dLGD
+        CumLam = (210/10000)/dLGD
     if ((T > 7) and (T <= 10)):
-        CumLam = (160/10000)/dLGD
+        CumLam = (250/10000)/dLGD
     return CumLam
 
-def PremPay(dr, iN):
-    dPremPay = 0
-    for iT in range(1, iN + 1):
-        dPremPay = dPremPay + np.exp(-dr * iT) * (iT - (iT - 1)) * np.exp(-quad(func =Lam,a=  0,b= iT )[0]) 
-    return dPremPay
 
-PremPay(dr, 1)
+dLGD = 0.3
+dr = 0.005
 
-quad(func =Lam,a=  0,b= 1)
+def Optim(iN):
+    Lamd = Lam(iN)
+    def PremPay(dr, iN):
+        vPremPay = np.zeros(int(iN * 4 + 1))
+        for i, iT in enumerate (np.linspace(0.25, iN, iN * 4 + 1)):
+            vPremPay[i] = np.exp(-dr * iT) * 1/4 * np.exp(-Lamd * iT)
+        return sum(vPremPay)
+    
+    dPremPay = PremPay(dr, iN)
+    
+    ####
+    #ACCRUED PREMIUM
+    ####
+    
+    def AccrIntegrand(u):
+        dAccrIntegrand = np.exp(-dr * u) * (1/4)/2 * Lamd * np.exp(- Lamd * u)
+        return dAccrIntegrand
+    
+    dAccrPrem = quad(AccrIntegrand, 0, iN)[0]    
+    
+    dPremLeg = dCDS[iN] * (dPremPay + dAccrPrem)
+    #dCDS[iN]
+    
+    ####
+    #PROTECTION LEG
+    ####
+    
+    def ProtecIntegrand(u):
+        dProtecIntegrand = np.exp(-dr * u) * Lamd * np.exp(-Lamd * u)
+        return dProtecIntegrand
+    
+    dProtecLeg = dLGD * quad(ProtecIntegrand, 0, iN)[0]
+
+    return dPremLeg - dProtecLeg
+
+Optim(10)
+
+minimize(Optim, (160/10000)/dLGD, method = 'Nelder-Mead', tol = 0.1)
