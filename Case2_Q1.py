@@ -61,13 +61,14 @@ Question 2
 mData2 = pd.DataFrame(data = mD)
 dCDS = {1: 160/10000, 3: 180/10000, 5: 200/10000, 7: 210/10000, 10: 250/10000}
 
-vPayTimes = np.linspace
+
 
 ####
 #PREMIUM PAYMENTS
 ####
 
-def Lam(T):
+#Create function to give correct cumulative lambda for a given T.
+def getLam(T):
     CumLam = 0
     if ((T > 0) and (T <= 1)):
         CumLam = (160/10000)/dLGD
@@ -81,14 +82,21 @@ def Lam(T):
         CumLam = (250/10000)/dLGD
     return CumLam
 
-iN = 3
+#Set variables for following calculation.
+iN = 1
 dLGD = 0.3
 dr = 0.005
-Lamd = Lam(iN)
+Lamd = getLam(iN)
+
+#Function which calculates premium payments, accrued premium and protection leg.
+#Function is set out to be optimized later.
 def Optim(Lamd, iN):
+    
     ####
     #PREMIUM PAYMENTS
     ####
+    
+    #Function to calculate discounted quarterly premium payments.
     def PremPay(iN):
         dPremPay = 0
         for i in (np.linspace(0.25, iN, iN * 4 + 1)):
@@ -101,28 +109,33 @@ def Optim(Lamd, iN):
     #ACCRUED PREMIUM
     ####
     
+    #Function to be integrated for integral portion of accrued premium. (Not sure about this one and how/if to treat quarterly payments here).
     def AccrIntegrand(u):
         dAccrIntegrand = np.exp(-dr * u) * (1/4)/2 * Lamd * np.exp(- Lamd * u)
         return dAccrIntegrand
     
+    #Integrate function defined above.
     dAccrPrem = quad(AccrIntegrand, 0, iN)[0]    
-    
-    dPremLeg = dCDS[iN] * (dPremPay + dAccrPrem)
     
     ####
     #PROTECTION LEG
     ####
     
+    #Function to be integrated for the integral portion of the protection leg.
     def ProtecIntegrand(u):
         dProtecIntegrand = np.exp(-dr * u) * Lamd * np.exp(-Lamd * u)
         return dProtecIntegrand
     
+    #Integrate functiond defined above and multiply by loss given default.
     dProtecLeg = dLGD * quad(ProtecIntegrand, 0, iN)[0]
 
-    return dPremLeg - dProtecLeg
+    #Return CDS pricing formula which gives the pricing premium. 
+    return dCDS[iN] * (dPremPay + dAccrPrem) - dProtecLeg
 
-Optim(Lamd,1)
+#Optim(Lamd,1)
 
+#Define optimization function in terms of one input variable so that we can optimize it.
 diff = lambda x: Optim(x, iN)
 
+#Minimize the pricing premium (get to zero) by changing the cumulative hazard rates.
 minimize(diff, dCDS[iN]/dLGD, method = 'Nelder-Mead', tol = 0.1)
